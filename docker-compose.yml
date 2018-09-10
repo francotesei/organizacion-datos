@@ -1,0 +1,68 @@
+version: '2'
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:1.1.0-hadoop2.8-java8
+    container_name: namenode
+    volumes:
+      - /data/namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+      - "HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false"
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 50070:50070
+      - 8020:8020
+  datanode:
+    image: bde2020/hadoop-datanode:1.1.0-hadoop2.8-java8
+    depends_on:
+      - namenode
+    volumes:
+      - /data/datanode:/hadoop/dfs/data
+    environment:
+      - "HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false"
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 50075:50075
+  spark-master:
+    image: spark-master-livy-server #registryrfsc.azurecr.io/spark-master:2.1.0-hadoop2.8-hive-java8-livy
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-master
+    container_name: spark-master
+    ports:
+      - 8080:8080
+      - 8998:8998
+      - 7077:7077
+      - 4040:4040
+    env_file:
+      - ./hadoop.env
+    volumes:
+      - ./log4j.properties:/log4j.properties
+    extra_hosts:
+      - "logstash:172.26.230.157"
+  spark-worker:
+    image: bde2020/spark-worker:2.1.0-hadoop2.8-hive-java8
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    ports:
+      - 8081:8081
+    env_file:
+      - ./hadoop.env
+    volumes:
+      - ./log4j.properties:/log4j.properties
+    extra_hosts:
+      - "logstash:172.26.230.157"
+  hue:
+    image: bde2020/hdfs-filebrowser:3.11
+    ports:
+      - 8088:8088
+    environment:
+      - NAMENODE_HOST=namenode
+  jupyter:
+    image: jupyter/sparkmagic
+    ports:
+      - 8888:8888
